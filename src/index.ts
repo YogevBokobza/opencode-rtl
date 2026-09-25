@@ -23,4 +23,5 @@ export {
   type RtlPluginOptions,
 } from "./core.js"
 export { RtlPlugin, server } from "./server.js"
+export { default } from "./server.js"
 export { tui } from "./tui.js"

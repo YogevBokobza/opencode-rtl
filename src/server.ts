@@ -1,4 +1,6 @@
 import type { Hooks, Plugin, PluginModule, PluginOptions } from "@opencode-ai/plugin"
+import type { Plugin as V2Plugin } from "@opencode/plugin"
+import { setup } from "./v2.js"
 import {
   PLUGIN_ID,
   analyzeDirection,
@@ -72,7 +74,8 @@ export const RtlPlugin = server
 export default {
   id: PLUGIN_ID,
   server,
-} satisfies PluginModule
+  setup,
+} satisfies PluginModule & V2Plugin.Plugin
 
 function mutateTextFields(value: unknown, format: (value: string) => string) {
   if (!isMutableRecord(value)) return
