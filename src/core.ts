@@ -70,6 +70,7 @@ const RTL_GLOBAL =
   /[\u0590-\u05ff\u0600-\u06ff\u0700-\u074f\u0750-\u077f\u0780-\u07bf\u07c0-\u07ff\u0800-\u083f\u0840-\u085f\u0860-\u086f\u0870-\u089f\u08a0-\u08ff\ufb1d-\ufdff\ufe70-\ufeff\u{10800}-\u{10fff}\u{1e800}-\u{1e95f}]/gu
 const LTR_GLOBAL = /[A-Za-z\u00c0-\u02af\u0370-\u052f]/gu
 const DIRECTIONAL_CONTROLS = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu
+const ISOLATES = /[\u2066-\u2069]/u
 const HEBREW = /[\u0590-\u05ff]/u
 const URDU = /[\u0679\u0688\u0691\u06ba\u06be\u06c1-\u06c3\u06d2]/u
 const PERSIAN = /[\u067e\u0686\u0698\u06af]/u
@@ -312,6 +313,10 @@ function isLineFence(line: string): boolean {
 
 export function stripDirectionalControls(text: string): string {
   return text.replace(DIRECTIONAL_CONTROLS, "")
+}
+
+export function hasDirectionalIsolates(text: string): boolean {
+  return ISOLATES.test(text)
 }
 
 export function systemPrompt(options: NormalizedRtlOptions): string | undefined {
