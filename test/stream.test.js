@@ -193,6 +193,37 @@ test("gemini: leaves thought parts alone", async () => {
   assert.equal(payloads[0].candidates[0].content.parts[0].text, "سلام\n\n")
 })
 
+test("gemini: keeps buffered text in its original part before non-text parts", async () => {
+  const { payloads } = await run([
+    frame({
+      candidates: [
+        {
+          index: 0,
+          content: { role: "model", parts: [{ text: "سلام" }, { functionCall: { name: "run" } }] },
+          finishReason: "STOP",
+        },
+      ],
+    }),
+  ])
+
+  const parts = payloads[0].candidates[0].content.parts
+  assert.equal(parts[0].text, `${RLI}سلام${PDI}`)
+  assert.deepEqual(parts[1], { functionCall: { name: "run" } })
+})
+
+test("gemini: flushes trailing text when the stream closes without finishReason", async () => {
+  const { payloads } = await run([
+    frame({ candidates: [{ index: 0, content: { role: "model", parts: [{ text: "سلام" }] } }] }),
+  ])
+
+  const text = payloads
+    .flatMap((entry) => entry.candidates ?? [])
+    .flatMap((candidate) => candidate.content?.parts ?? [])
+    .map((part) => part.text ?? "")
+    .join("")
+  assert.equal(text, `${RLI}سلام${PDI}`)
+})
+
 test("survives frames split across arbitrary read boundaries", async () => {
   const whole = [
     frame({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: MIXED } }),
@@ -226,6 +257,20 @@ test("passes through unparseable and unrecognised frames untouched", async () =>
   assert.equal(output, chunks.join(""))
 })
 
+test("passes through unsupported provider JSON without reserializing it", async () => {
+  const raw = 'data: { "type" : "future_event",\ndata: "value" : 1 }\n\n'
+  assert.equal(await rewriteAssistantStream(sse([raw]), format).text(), raw)
+})
+
+test("recognizes valid SSE separators made from mixed line endings", async () => {
+  const first = frame({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "سلام\n\n" } })
+  const separator = "\n\r\n"
+  const second = frame({ type: "content_block_stop", index: 0 })
+  const output = await rewriteAssistantStream(sse([first.slice(0, -2) + separator + second]), format).text()
+  assert.match(output, /⁧سلام⁩/)
+  assert.ok(output.includes(separator))
+})
+
 test("preserves the SSE event name and CRLF separators", async () => {
   const body =
     "event: content_block_delta\r\n" +
@@ -243,6 +288,29 @@ test("a formatter that throws does not break the stream", async () => {
   const body = frame({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "سلام\n\n" } })
   const output = await rewriteAssistantStream(sse([body]), boom).text()
   assert.equal(output, body)
+})
+
+test("a formatter error while flushing trailing text does not abort the response", async () => {
+  const throwsOnTail = (text) => {
+    if (text === "after") throw new Error("boom")
+    return format(text)
+  }
+  const body = frame({
+    type: "content_block_delta",
+    index: 0,
+    delta: { type: "text_delta", text: "سلام\n\nafter" },
+  })
+  const output = await rewriteAssistantStream(sse([body]), throwsOnTail).text()
+  assert.match(output, /after/)
+})
+
+test("does not append buffered assistant text after a provider error event", async () => {
+  const { payloads } = await run([
+    frame({ type: "response.output_text.delta", item_id: "msg_1", output_index: 0, content_index: 0, delta: "سلام" }),
+    frame({ type: "error", error: { message: "provider failed" } }),
+  ])
+  assert.equal(payloads.at(-1).type, "error")
+  assert.equal(payloads.some((entry) => entry.type === "response.output_text.delta" && entry.delta), false)
 })
 
 test("keeps a fenced code block intact when it spans many deltas", async () => {

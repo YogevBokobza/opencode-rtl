@@ -98,8 +98,34 @@ export default plugin
  * turn, so already-isolated text is left alone instead of being wrapped twice.
  */
 function isolate(text: string, mode: IsolationMode, options: NormalizedRtlOptions): string {
-  if (!text || hasDirectionalIsolates(text)) return text
-  return formatRtlText(text, mode, options)
+  if (!text) return text
+  if (!hasDirectionalIsolates(text)) return formatRtlText(text, mode, options)
+
+  let result = ""
+  let outsideStart = 0
+  let isolatedStart = -1
+  let depth = 0
+
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index)
+    if (code >= 0x2066 && code <= 0x2068) {
+      if (depth === 0) {
+        result += formatRtlText(text.slice(outsideStart, index), mode, options)
+        isolatedStart = index
+      }
+      depth += 1
+    } else if (code === 0x2069 && depth > 0) {
+      depth -= 1
+      if (depth === 0) {
+        result += text.slice(isolatedStart, index + 1)
+        outsideStart = index + 1
+      }
+    }
+  }
+
+  return depth === 0
+    ? result + formatRtlText(text.slice(outsideStart), mode, options)
+    : result + text.slice(isolatedStart)
 }
 
 /** Returns rewritten message content, or undefined when nothing changed. */

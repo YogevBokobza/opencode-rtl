@@ -52,7 +52,7 @@ export function rewriteAssistantStream(response: Response, format: TextFormatter
 
 /** Locates the end of the first complete SSE frame, separator included. */
 function nextFrameBoundary(buffer: string): { end: number; separator: string } | undefined {
-  const match = /\r\n\r\n|\n\n|\r\r/.exec(buffer)
+  const match = /(?:\r\n|\n|\r)(?:\r\n|\n|\r)/.exec(buffer)
   if (!match) return undefined
   return { end: match.index + match[0].length, separator: match[0] }
 }
@@ -78,14 +78,22 @@ class TextStream {
     if (cut < 0) return ""
     const segment = this.pending.slice(0, cut)
     this.pending = this.pending.slice(cut)
-    return this.format(segment)
+    try {
+      return this.format(segment)
+    } catch {
+      return segment
+    }
   }
 
   flush(): string {
     if (!this.pending) return ""
     const segment = this.pending
     this.pending = ""
-    return this.format(segment)
+    try {
+      return this.format(segment)
+    } catch {
+      return segment
+    }
   }
 }
 
@@ -123,6 +131,7 @@ type Json = Record<string, unknown>
 /** Rewrites assistant text in the SSE frames of a provider response. */
 class SseRewriter {
   private readonly streams = new Map<string, TextStream>()
+  private readonly geminiParts = new Map<string, { candidateIndex: number; partIndex: number; role?: unknown }>()
   private separator = "\n\n"
   private eol = "\n"
   private openaiChunk: Json | undefined
@@ -132,7 +141,7 @@ class SseRewriter {
   frame(frame: string, separator: string): string {
     if (separator) {
       this.separator = separator
-      this.eol = separator.slice(0, separator.length / 2)
+      this.eol = /\r\n|\n|\r/.exec(separator)?.[0] ?? "\n"
     }
     try {
       return this.rewrite(frame, separator)
@@ -149,6 +158,7 @@ class SseRewriter {
       if (rest) frames.push(...this.deltaFrames(key, rest))
     }
     this.streams.clear()
+    this.geminiParts.clear()
     return frames.join("")
   }
 
@@ -159,8 +169,10 @@ class SseRewriter {
     const payload = JSON.parse(parsed.data) as unknown
     if (!isRecord(payload)) return frame
 
+    const original = JSON.stringify(payload)
     const extra = this.apply(payload)
-    return extra.join("") + parsed.render(JSON.stringify(payload))
+    const rewritten = JSON.stringify(payload)
+    return extra.join("") + (rewritten === original ? frame : parsed.render(rewritten))
   }
 
   /**
@@ -169,6 +181,12 @@ class SseRewriter {
    */
   private apply(payload: Json): string[] {
     const type = typeof payload.type === "string" ? payload.type : undefined
+
+    if (type === "error" || isRecord(payload.error)) {
+      this.streams.clear()
+      this.geminiParts.clear()
+      return []
+    }
 
     // Anthropic Messages.
     if (type === "content_block_delta") {
@@ -224,16 +242,26 @@ class SseRewriter {
       for (const entry of payload.candidates) {
         const candidate = asRecord(entry)
         if (!candidate) continue
-        const key = `gemini:${String(candidate.index ?? 0)}`
-        for (const part of asArray(asRecord(candidate.content)?.parts)) {
+        const candidateIndex = Number(candidate.index ?? 0)
+        const content = asRecord(candidate.content)
+        const parts = asArray(content?.parts)
+        for (const [partIndex, part] of parts.entries()) {
           const record = asRecord(part)
           if (!record || record.thought === true || typeof record.text !== "string") continue
+          const key = geminiKey(candidateIndex, partIndex)
+          this.geminiParts.set(key, { candidateIndex, partIndex, role: content?.role })
           record.text = this.stream(key).push(record.text)
         }
         if (candidate.finishReason != null) {
-          const rest = this.streams.get(key)?.flush() ?? ""
-          this.streams.delete(key)
-          if (rest) appendGeminiText(candidate, rest)
+          for (const [key, metadata] of this.geminiParts) {
+            if (metadata.candidateIndex !== candidateIndex) continue
+            const rest = this.streams.get(key)?.flush() ?? ""
+            this.streams.delete(key)
+            this.geminiParts.delete(key)
+            if (!rest) continue
+            const part = asRecord(parts[metadata.partIndex])
+            if (part && typeof part.text === "string") part.text += rest
+          }
         }
       }
       return []
@@ -296,7 +324,23 @@ class SseRewriter {
       ]
     }
 
-    // Gemini has no standalone delta frame we can safely synthesise.
+    if (protocol === "gemini") {
+      const metadata = this.geminiParts.get(key)
+      if (!metadata) return []
+      const parts: Json[] = Array.from({ length: metadata.partIndex + 1 }, () => ({}))
+      parts[metadata.partIndex] = { text }
+      return [
+        this.render(undefined, {
+          candidates: [
+            {
+              index: metadata.candidateIndex,
+              content: { ...(metadata.role === undefined ? {} : { role: metadata.role }), parts },
+            },
+          ],
+        }),
+      ]
+    }
+
     return []
   }
 
@@ -347,6 +391,10 @@ function responsesKey(payload: Json): string {
   return `responses:${String(payload.item_id ?? "")}:${String(payload.output_index ?? 0)}:${String(payload.content_index ?? 0)}`
 }
 
+function geminiKey(candidateIndex: number, partIndex: number): string {
+  return `gemini:${candidateIndex}:${partIndex}`
+}
+
 /** Formats every `output_text` part reachable in a terminal Responses payload. */
 function formatOutputText(value: unknown, format: TextFormatter): void {
   if (Array.isArray(value)) {
@@ -360,21 +408,6 @@ function formatOutputText(value: unknown, format: TextFormatter): void {
     return
   }
   for (const entry of Object.values(record)) formatOutputText(entry, format)
-}
-
-function appendGeminiText(candidate: Json, text: string): void {
-  const content = asRecord(candidate.content)
-  if (!content) {
-    candidate.content = { role: "model", parts: [{ text }] }
-    return
-  }
-  const parts = asArray(content.parts)
-  const last = asRecord(parts[parts.length - 1])
-  if (last && last.thought !== true && typeof last.text === "string") {
-    last.text += text
-    return
-  }
-  content.parts = [...parts, { text }]
 }
 
 function isRecord(value: unknown): value is Json {

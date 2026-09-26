@@ -61,6 +61,16 @@ test("leaves an already isolated prompt alone", async () => {
   assert.equal(twice.prompt.text, once.prompt.text)
 })
 
+test("formats RTL text outside an already isolated span", async () => {
+  const ctx = makeContext()
+  await plugin.setup(ctx)
+
+  const event = { prompt: { text: `${RLI}שלום${PDI} and עולם` } }
+  await ctx.hooks.get("session.prompt")(event)
+  assert.match(event.prompt.text, new RegExp(`${PDI}${RLI}.*עולם.*${PDI}`))
+  assert.equal((event.prompt.text.match(new RegExp(RLI, "g")) ?? []).length, 2)
+})
+
 test("pushes system guidance and isolates user turns on the context hook", async () => {
   const ctx = makeContext()
   await plugin.setup(ctx)
