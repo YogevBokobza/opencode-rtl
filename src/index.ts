@@ -4,6 +4,7 @@ export {
   analyzeDirection,
   detectLanguage,
   formatRtlText,
+  hasDirectionalIsolates,
   isRtlLanguage,
   languageName,
   normalizeOptions,
@@ -22,5 +23,5 @@ export {
   type RtlLanguage,
   type RtlPluginOptions,
 } from "./core.js"
-export { RtlPlugin, server } from "./server.js"
-export { tui } from "./tui.js"
+export { rewriteAssistantStream, type TextFormatter } from "./stream.js"
+export { default } from "./server.js"

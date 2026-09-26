@@ -2,6 +2,8 @@
 
 Comprehensive right-to-left language support for opencode. The plugin improves mixed RTL/LTR conversations in terminal sessions while preserving code, commands, file paths, logs, and other technical text.
 
+Requires **opencode 2.x**. On opencode 1.x, stay on `opencode-rtl@0.1`.
+
 ## Features
 
 - Adds model guidance for Arabic, Persian, Hebrew, Urdu, Pashto, Sindhi, Yiddish, Divehi, Uyghur, and Kurdish workflows.
@@ -10,31 +12,35 @@ Comprehensive right-to-left language support for opencode. The plugin improves m
 - Optionally hard-wraps and pads RTL paragraphs so wrapped lines remain visually right-aligned in opencode's TUI.
 - Leaves fenced code blocks and indented code untouched.
 - Optionally normalizes Arabic-Indic, Eastern Arabic, or Latin digits.
-- Exposes TUI commands for plugin status and RTL detection checks.
+- Exposes CLI commands for plugin status and RTL detection checks.
 - Exports reusable text utilities for custom opencode plugins.
 
 ## Install
 
-### From npm
+```sh
+opencode plugin add opencode-rtl
+```
 
-Add the plugin to `opencode.json` or `~/.config/opencode/opencode.json`.
+Or add it to `opencode.json` / `~/.config/opencode/opencode.json`:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-rtl"]
+  "plugins": ["opencode-rtl"]
 }
 ```
 
 ### With options
 
+opencode 2 takes plugin options through the object form of a `plugins` entry.
+
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    [
-      "opencode-rtl",
-      {
+  "plugins": [
+    {
+      "package": "opencode-rtl",
+      "options": {
         "language": "auto",
         "systemGuidance": true,
         "isolateUserMessages": "auto",
@@ -45,31 +51,37 @@ Add the plugin to `opencode.json` or `~/.config/opencode/opencode.json`.
         "rtlWrapColumn": 96,
         "rtlAlignColumn": 96
       }
-    ]
+    }
   ]
 }
 ```
 
-### Local development
+### From a checkout
 
-This repository includes `opencode.json` so opencode can load the plugin from the project during development.
+Point a `plugins` entry at the directory. Relative paths resolve from the config file that contains the entry, and absolute paths work too:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [["./", { "language": "auto" }]]
+  "plugins": [
+    { "package": "/absolute/path/to/opencode-rtl", "options": { "language": "auto", "notifyOnStart": true } }
+  ]
 }
 ```
 
-Restart opencode after changing plugin files or config. opencode loads plugins once at startup.
+Run `npm run build` after changing plugin sources.
 
-To confirm opencode sees the project config, run this from the repository root:
+The root `index.js` and `tui.js` are two-line re-exports of `dist/`, and both have to stay. When opencode loads a plugin from a directory it looks for those two filenames at the package root and ignores `main` and `exports`, so a package that only points `exports` into `dist/` is skipped with nothing in the log. Packages installed from npm resolve through `exports` as usual and do not need them.
+
+This repository's own `opencode.json` already does this, so opencode loads the plugin when started from the checkout.
+
+To confirm opencode sees the plugin, ask the running server:
 
 ```sh
-opencode debug config
+opencode api plugin.list
 ```
 
-The output should contain `file:///path/to/opencode-rtl` in the `plugin` array.
+Look for `"id":"opencode-rtl"` with `"features":{"server":true,"tui":true}` and `"status":"active"`. Note that `opencode plugin list` only lists packages installed through `opencode plugin add`, not config entries.
 
 ## Options
 
@@ -78,7 +90,7 @@ The output should contain `file:///path/to/opencode-rtl` in the `plugin` array.
 | `enabled` | `boolean` | `true` | Enables all plugin behavior. |
 | `language` | `"auto" \| "none" \| RTL language code` | `"auto"` | Auto-detects or forces the RTL language context. |
 | `systemGuidance` | `boolean \| string` | `true` | Adds built-in guidance or a custom system prompt. |
-| `isolateUserMessages` | `"off" \| "auto" \| "always" \| boolean` | `"auto"` | Applies Unicode bidi isolation to user text sent to models. |
+| `isolateUserMessages` | `"off" \| "auto" \| "always" \| boolean` | `"auto"` | Applies Unicode bidi isolation to user text. |
 | `isolateAssistantText` | `"off" \| "auto" \| "always" \| boolean` | `"auto"` | Applies Unicode bidi isolation to generated assistant text. |
 | `isolateToolOutput` | `"off" \| "auto" \| "always" \| boolean` | `"off"` | Applies isolation to tool output. Keep off if exact copy/paste matters. |
 | `minRtlRatio` | `number` | `0.2` | Minimum RTL character ratio for automatic RTL detection. |
@@ -91,17 +103,17 @@ The output should contain `file:///path/to/opencode-rtl` in the `plugin` array.
 | `wrapRtlMarkdown` | `"off" \| "auto" \| "always"` | `"off"` | Experimental output-only Markdown wrapper for renderers that honor inline HTML. Keep off for normal use. |
 | `directionEnv` | `boolean` | `true` | Exposes RTL settings to shell tools through `OPENCODE_RTL_*` env vars. |
 | `includeLanguageHint` | `boolean` | `true` | Adds an explicit language-context line to the system guidance. |
-| `notifyOnStart` | `boolean` | `false` | Shows a TUI toast when the plugin loads. Useful for setup checks. |
-| `debug` | `boolean` | `false` | Writes plugin initialization details through `client.app.log()`. |
+| `notifyOnStart` | `boolean` | `false` | Shows a toast when the plugin loads. Useful for setup checks. |
+| `debug` | `boolean` | `false` | Writes plugin initialization details to the opencode log. |
 
 Supported language codes: `ar`, `fa`, `he`, `ur`, `ps`, `sd`, `yi`, `dv`, `ug`, `ku`.
 
-## TUI Commands
+## CLI Commands
 
-Open the command palette and run:
+Open the command palette, or type the slash command in the prompt:
 
-- `RTL: Show Status` to display active options.
-- `RTL: Analyze Sample` to verify direction and language detection.
+- `RTL: Show Status` / `/rtl-status` to display active options.
+- `RTL: Analyze Sample` / `/rtl-sample` to verify direction and language detection.
 
 ## Direction Detection
 
@@ -117,21 +129,23 @@ The plugin treats mixed text as RTL when at least `minRtlCharacters` RTL charact
 
 Use `forceDirection: "rtl"` only if you want every formatted assistant/user text segment to be treated as RTL regardless of detected content.
 
-## Web Layout
+## Markdown Wrapping
 
-`opencode web` controls the prompt input and outer message column in its own UI. Without changing opencode itself, the plugin can only influence text after it leaves or enters model hooks. Optionally set `wrapRtlMarkdown: "auto"` to wrap each detected RTL output paragraph in an inline HTML paragraph:
+Renderers that honor inline HTML can be given an explicit direction instead of relying on bidi controls. Set `wrapRtlMarkdown: "auto"` to wrap each detected RTL output paragraph:
 
 ```html
-<p dir="rtl" align="right">
+<div dir="rtl" align="right">
+
 RTL block only
-</p>
+
+</div>
 ```
 
-LTR paragraphs and fenced code blocks are left unchanged. This option is disabled by default because inline HTML wrappers can interact poorly with some Markdown renderers. If live typing in the Ask Anything box is wrong, the fix must be upstream in opencode's Web UI prompt component.
+LTR paragraphs and fenced code blocks are left unchanged. This is off by default because inline HTML wrappers interact poorly with some Markdown renderers, and it is never applied to text sent to a model.
 
 ## Terminal Alignment
 
-opencode's terminal TUI can render soft-wrapped RTL text with correct paragraph direction but left alignment on continuation lines. Enable `alignRtlParagraphs` only for terminal TUI output, not for `opencode web`, because it inserts real line breaks and padding spaces into assistant text.
+opencode's terminal UI can render soft-wrapped RTL text with correct paragraph direction but left alignment on continuation lines. Enable `alignRtlParagraphs` only for terminal output, because it inserts real line breaks and padding spaces into assistant text.
 
 ```json
 {
@@ -141,32 +155,46 @@ opencode's terminal TUI can render soft-wrapped RTL text with correct paragraph 
 }
 ```
 
-Tune `rtlAlignColumn` to the visible message width in your terminal. If the padded lines start too far left, increase it; if they overflow or wrap again, decrease it. Keep this option off for Web UI because it inserts real spacing into the message text.
+Tune `rtlAlignColumn` to the visible message width in your terminal. If the padded lines start too far left, increase it; if they overflow or wrap again, decrease it.
 
 ## Troubleshooting
 
 If it looks like nothing changed:
 
-- Start opencode from this repository, or pass the project path explicitly: `opencode /path/to/opencode-rtl`.
-- Confirm project config is loaded with `opencode debug config`; do not share the full output because it can include provider API keys.
+- Confirm the plugin is loaded with `opencode plugin list`.
 - Look for the `RTL support loaded` toast on startup when `notifyOnStart` or `debug` is enabled.
-- If automatic detection is too subtle, set `forceDirection` to `"rtl"` and `isolateAssistantText` to `"always"` in `opencode.json`.
-- If RTL continuation lines appear left-aligned in terminal TUI, enable `alignRtlParagraphs` and tune `rtlAlignColumn` for your terminal width.
-- If you use `opencode web`, prompt/input alignment is controlled by opencode's Web UI. This plugin cannot change that without an upstream opencode web change.
-- If you use terminal TUI and mean the prompt cursor/input direction, that is controlled by opencode's TUI and your terminal, not by server-side plugin hooks.
+- If automatic detection is too subtle, set `forceDirection` to `"rtl"` and `isolateAssistantText` to `"always"`.
+- If RTL continuation lines appear left-aligned, enable `alignRtlParagraphs` and tune `rtlAlignColumn` for your terminal width.
+- If assistant text is not isolated at all, your provider may stream over a protocol this plugin does not rewrite — see [How It Works](#how-it-works).
+- If you mean the prompt cursor/input direction, that is controlled by opencode's terminal UI and your terminal, not by a plugin hook.
 
 ## How It Works
 
-opencode plugins cannot replace the terminal renderer or the host terminal font. This plugin uses the supported plugin hooks to improve RTL behavior safely:
+opencode plugins cannot replace the terminal renderer or the host terminal font. This plugin uses the opencode 2 plugin API to improve RTL behavior safely:
 
-- `experimental.chat.system.transform` injects RTL-aware response instructions.
-- `chat.message` isolates RTL user message parts before model calls.
-- `experimental.chat.messages.transform` keeps historical user message parts stable during context transforms.
-- `experimental.text.complete` isolates assistant prose after generation.
-- `tool.execute.after` can isolate tool output when explicitly enabled.
-- `shell.env` exposes `OPENCODE_RTL`, `OPENCODE_RTL_LANGUAGE`, `OPENCODE_RTL_USER_ISOLATION`, and `OPENCODE_RTL_ASSISTANT_ISOLATION`.
+| Surface | Hook |
+| --- | --- |
+| RTL-aware response instructions | `session.hook("context")`, pushed onto `event.system` |
+| User prompts, as stored and displayed | `session.hook("prompt")` |
+| User turns sent to the model | `session.hook("context")`, over `event.messages` |
+| Assistant prose | `session.hook("http.response")` — see below |
+| Tool output, when enabled | `tool.hook("execute.after")` |
+| `OPENCODE_RTL*` shell variables | `shell.hook("create.before")` |
 
-The formatter skips fenced code blocks and indented code because invisible bidi controls inside source code, shell commands, or logs can make copying unsafe.
+Text that already carries bidi isolates is left alone, so a message is never wrapped twice as it moves through admission, context assembly, and later turns.
+
+The formatter skips fenced code blocks and indented code, because invisible bidi controls inside source code, shell commands, or logs can make copying unsafe.
+
+### Assistant text on opencode 2
+
+opencode 1 had `experimental.text.complete`, which handed the plugin the finished assistant text. opencode 2 removed it with no replacement, and there is no API to rewrite a stored message part. The only remaining point where a plugin can see assistant prose before opencode stores and renders it is the provider's own HTTP response, so `src/stream.ts` rewrites the assistant text deltas inside the provider's SSE stream.
+
+What this means in practice:
+
+- **Supported protocols**: Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, and Gemini. Anything else — including providers that stream over a WebSocket — is forwarded byte-for-byte, so assistant text is simply left unformatted rather than corrupted.
+- **Only the agent loop** is rewritten. Title generation, compaction summaries, and one-shot `generate` calls are untouched.
+- **Output arrives in blocks.** Isolation has to see a complete Markdown block to classify it, so text is released at blank lines outside fenced code. Streamed output is byte-identical to what a single whole-message pass would produce; it just appears paragraph by paragraph instead of token by token.
+- Set `isolateAssistantText: "off"` to disable this path entirely; the hook is then never registered.
 
 ## Development
 
@@ -178,14 +206,14 @@ npm test
 
 ## Package Entrypoints
 
-- `opencode-rtl/server` exports the server plugin module.
-- `opencode-rtl/tui` exports the TUI plugin module.
-- `opencode-rtl` exports reusable utilities plus plugin functions.
+- `opencode-rtl` — the plugin's default export, plus the reusable text utilities.
+- `opencode-rtl/tui` — the CLI plugin, loaded automatically by opencode.
+- `opencode-rtl/server` — the server plugin definition on its own.
 
 ## Limitations
 
 - Terminal shaping, glyph fallback, cursor movement, and input method behavior still depend on your terminal emulator and font.
-- The opencode prompt/input widget is not replaced by this plugin; terminal cursor movement for RTL typing still depends on the TUI and terminal.
-- The browser prompt/input in `opencode web` is rendered by opencode's Web UI. The current plugin API does not expose a supported hook to change its DOM direction or alignment.
+- The opencode prompt/input widget is not replaced by this plugin; terminal cursor movement for RTL typing still depends on the terminal UI and your terminal.
+- Assistant text isolation depends on the provider's streaming protocol; see the list above.
 - Unicode isolation improves display order but intentionally does not rewrite code, logs, paths, or command output by default.
 - If exact text copy/paste is more important than visual ordering, set `isolateAssistantText` to `"off"`.

@@ -4,6 +4,7 @@ import {
   analyzeDirection,
   detectLanguage,
   formatRtlText,
+  hasDirectionalIsolates,
   normalizeOptions,
   stripDirectionalControls,
   systemPrompt,
@@ -199,4 +200,13 @@ test("column direction defaults to LTR when no RTL majority", () => {
   assert.match(output, /^\| \u2066Name\u2069 \| \u2066Value\u2069 \|$/m)
   assert.match(output, /^\| \u2066alpha\u2069 \| \u2066beta\u2069 \|$/m)
   assert.match(output, /^\| \u2066gamma\u2069 \| \u2066\u0645\u062a\u0646\u2069 \|$/m)
+})
+
+test("detects existing bidi isolates so text is not wrapped twice", () => {
+  const options = normalizeOptions({})
+  const once = formatRtlText("سلام opencode", "auto", options)
+
+  assert.equal(hasDirectionalIsolates("سلام opencode"), false)
+  assert.equal(hasDirectionalIsolates(once), true)
+  assert.notEqual(formatRtlText(once, "auto", options), once)
 })

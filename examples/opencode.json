@@ -1,9 +1,9 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    [
-      "opencode-rtl",
-      {
+  "plugins": [
+    {
+      "package": "opencode-rtl",
+      "options": {
         "language": "auto",
         "systemGuidance": true,
         "isolateUserMessages": "auto",
@@ -19,6 +19,6 @@
         "wrapRtlMarkdown": "auto",
         "notifyOnStart": false
       }
-    ]
+    }
   ]
 }
