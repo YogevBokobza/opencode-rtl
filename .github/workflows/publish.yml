@@ -27,4 +27,4 @@ jobs:
 
       - run: npm test
 
-      - run: npm publish --access public
+      - run: npm stage publish --access public
