@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/razavioo/opencode-rtl.git"
+    "url": "git+https://github.com/razavioo/opencode-rtl.git"
   },
   "main": "./dist/server.js",
   "exports": {
