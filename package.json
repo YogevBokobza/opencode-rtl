@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-rtl",
-  "version": "0.1.9",
+  "version": "1.0.0",
   "description": "Comprehensive RTL language support plugin for opencode.",
   "type": "module",
   "license": "MIT",
@@ -18,7 +18,7 @@
     "README.md"
   ],
   "engines": {
-    "opencode": ">=1.17.0"
+    "opencode": ">=2.0.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -36,7 +36,7 @@
     "urdu"
   ],
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.17.8",
+    "@opencode/plugin": "^2.0.17",
     "@types/node": "^22.15.3",
     "typescript": "^5.8.3"
   }
