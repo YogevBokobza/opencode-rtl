@@ -23,13 +23,6 @@ jobs:
       - name: Install npm 12
         run: npm install -g npm@12
 
-      - name: Verify
-        run: |
-          echo "Node: $(node --version)"
-          echo "npm: $(npm --version)"
-          echo "OIDC URL set: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
-          echo "OIDC TOKEN set: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}"
-
       - run: npm ci
 
       - run: npm run build
@@ -37,4 +30,10 @@ jobs:
       - run: npm test
 
       - name: Stage publish with OIDC
-        run: npm stage publish --access public --provenance
+        run: npm stage publish --access public --provenance --loglevel verbose 2>&1 || true
+        env:
+          NODE_DEBUG: http,https
+
+      - name: Show npm debug log
+        if: always()
+        run: cat /home/runner/.npm/_logs/*-debug-*.log 2>/dev/null | tail -100 || echo "no debug log"
