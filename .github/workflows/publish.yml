@@ -20,14 +20,15 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Debug OIDC environment
+      - name: Install npm 12
+        run: npm install -g npm@12
+
+      - name: Verify
         run: |
           echo "Node: $(node --version)"
           echo "npm: $(npm --version)"
-          echo "ACTIONS_ID_TOKEN_REQUEST_URL set: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
-          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN set: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}"
-          echo "NPM_CONFIG_USERCONFIG: ${NPM_CONFIG_USERCONFIG:-unset}"
-          cat "${NPM_CONFIG_USERCONFIG:-/dev/null}" 2>/dev/null || echo "no userconfig"
+          echo "OIDC URL set: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
+          echo "OIDC TOKEN set: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}"
 
       - run: npm ci
 
@@ -35,8 +36,5 @@ jobs:
 
       - run: npm test
 
-      - name: Publish with OIDC
-        run: |
-          rm -f "${NPM_CONFIG_USERCONFIG:-}"
-          unset NPM_CONFIG_USERCONFIG
-          npm publish --access public --provenance
+      - name: Stage publish with OIDC
+        run: npm stage publish --access public --provenance
