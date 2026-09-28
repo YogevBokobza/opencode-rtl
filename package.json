@@ -5,6 +5,10 @@
   "description": "Comprehensive RTL language support plugin for opencode.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/razavioo/opencode-rtl.git"
+  },
   "main": "./dist/server.js",
   "exports": {
     ".": "./dist/index.js",
@@ -15,6 +19,8 @@
     "dist",
     "src",
     "examples",
+    "index.js",
+    "tui.js",
     "README.md"
   ],
   "engines": {
